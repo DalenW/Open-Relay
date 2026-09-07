@@ -43,6 +43,8 @@
 		38FEA31A2FA2A18600A98F25 /* MLXAudioSTT in Frameworks */ = {isa = PBXBuildFile; productRef = 38FEA3192FA2A18600A98F25 /* MLXAudioSTT */; };
 		38FEA31C2FA2A18600A98F25 /* MLXAudioTTS in Frameworks */ = {isa = PBXBuildFile; productRef = 38FEA31B2FA2A18600A98F25 /* MLXAudioTTS */; };
 		38SHARE012F00000000000001 /* OpenUIShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 38SHARE022F00000000000002 /* OpenUIShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D1757EB6304A9CC70040422E /* MarkdownParser in Frameworks */ = {isa = PBXBuildFile; productRef = D1757EB5304A9CC70040422E /* MarkdownParser */; };
+		D1757EB8304A9CC70040422E /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = D1757EB7304A9CC70040422E /* MarkdownView */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -156,6 +158,7 @@
 				3879DA932FE7D4ED0064E527 /* MarkdownView in Frameworks */,
 				38754A972F845BE60012CD28 /* ReactionContextMenu in Frameworks */,
 				388C02F72FB5131C0098FB4F /* MarkdownParser in Frameworks */,
+				D1757EB8304A9CC70040422E /* MarkdownView in Frameworks */,
 				387CAAD82F8AB953000B5152 /* MarkdownView in Frameworks */,
 				38B6DED72FA55DDC001924FB /* MarkdownView in Frameworks */,
 				3890E28F2F9845C10011D505 /* MarkdownParser in Frameworks */,
@@ -177,6 +180,7 @@
 				38AA00012FA9B00000MRMAID /* BeautifulMermaid in Frameworks */,
 				3800ST012F00000000ST001 /* SwiftTerm in Frameworks */,
 				388C02F92FB5131C0098FB4F /* MarkdownView in Frameworks */,
+				D1757EB6304A9CC70040422E /* MarkdownParser in Frameworks */,
 				387CA40E2F882523000B5152 /* MarkdownParser in Frameworks */,
 				38C7FDAD2FF9783D001C94A0 /* MarkdownView in Frameworks */,
 				388C02EF2FB44BD60098FB4F /* MarkdownView in Frameworks */,
@@ -302,6 +306,8 @@
 				3852CBEE303629A1004742AD /* MarkdownView */,
 				383573A03040FCDC00BB4B52 /* MarkdownParser */,
 				383573A23040FCDC00BB4B52 /* MarkdownView */,
+				D1757EB5304A9CC70040422E /* MarkdownParser */,
+				D1757EB7304A9CC70040422E /* MarkdownView */,
 			);
 			productName = "Open UI";
 			productReference = 38EB667D2F39CE5A00AED774 /* Open UI.app */;
@@ -368,7 +374,7 @@
 				38754A952F845BE60012CD28 /* XCRemoteSwiftPackageReference "ReactionContextMenu" */,
 				3800STREF2F00000000ST00F /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				38FEA3162FA2A18600A98F25 /* XCRemoteSwiftPackageReference "mlx-audio-swift" */,
-				3835739F3040FCDC00BB4B52 /* XCLocalSwiftPackageReference "../MarkdownView" */,
+				D1757EB4304A9CC70040422E /* XCRemoteSwiftPackageReference "MarkdownView" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 38EB667E2F39CE5A00AED774 /* Products */;
@@ -452,7 +458,7 @@
 				CODE_SIGN_ENTITLEMENTS = OpenUIWidgets/OpenUIWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 6ARX8PF3MT;
+				DEVELOPMENT_TEAM = 4RD9TU2V28;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = OpenUIWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = OpenUIWidget;
@@ -464,7 +470,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 5.5.2;
-				PRODUCT_BUNDLE_IDENTIFIER = com.openui.openui.OpenUIWidget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dalenw.openui.OpenUIWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -484,7 +490,7 @@
 				CODE_SIGN_ENTITLEMENTS = OpenUIWidgets/OpenUIWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 6ARX8PF3MT;
+				DEVELOPMENT_TEAM = 4RD9TU2V28;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = OpenUIWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = OpenUIWidget;
@@ -496,7 +502,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 5.5.2;
-				PRODUCT_BUNDLE_IDENTIFIER = com.openui.openui.OpenUIWidget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dalenw.openui.OpenUIWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -639,19 +645,23 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Open UI/Open UI.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 6ARX8PF3MT;
+				DEVELOPMENT_TEAM = 4RD9TU2V28;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Open UI/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Open Relay";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Open Relay needs camera access to capture photos and documents for chat attachments.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Open Relay uses Face ID to protect your account and conversations.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Open Relay uses your local network to connect to your self-hosted OpenWebUI server.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Open Relay uses your location to provide location-aware responses when you enable the Share Location feature in Privacy & Security settings.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Open Relay needs microphone access for voice input and voice calls.";
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Open Relay needs permission to save images generated in conversations to your photo library.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Open Relay needs access to save images from chat to your Photos library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Open Relay needs photo library access to attach images to your conversations.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Open Relay uses speech recognition to convert your voice input to text.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -665,8 +675,9 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 5.5.2;
-				PRODUCT_BUNDLE_IDENTIFIER = com.openui.openui;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dalenw.openui;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -687,19 +698,23 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Open UI/Open UI.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 6ARX8PF3MT;
+				DEVELOPMENT_TEAM = 4RD9TU2V28;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Open UI/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Open Relay";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Open Relay needs camera access to capture photos and documents for chat attachments.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Open Relay uses Face ID to protect your account and conversations.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Open Relay uses your local network to connect to your self-hosted OpenWebUI server.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Open Relay uses your location to provide location-aware responses when you enable the Share Location feature in Privacy & Security settings.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Open Relay needs microphone access for voice input and voice calls.";
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Open Relay needs permission to save images generated in conversations to your photo library.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Open Relay needs access to save images from chat to your Photos library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Open Relay needs photo library access to attach images to your conversations.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Open Relay uses speech recognition to convert your voice input to text.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -713,8 +728,9 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 5.5.2;
-				PRODUCT_BUNDLE_IDENTIFIER = com.openui.openui;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dalenw.openui;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -735,7 +751,7 @@
 				CODE_SIGN_ENTITLEMENTS = OpenUIShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 6ARX8PF3MT;
+				DEVELOPMENT_TEAM = 4RD9TU2V28;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = OpenUIShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Open Relay";
@@ -746,7 +762,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 5.5.2;
-				PRODUCT_BUNDLE_IDENTIFIER = com.openui.openui.ShareExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dalenw.openui.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -762,7 +778,7 @@
 				CODE_SIGN_ENTITLEMENTS = OpenUIShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 6ARX8PF3MT;
+				DEVELOPMENT_TEAM = 4RD9TU2V28;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = OpenUIShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Open Relay";
@@ -773,7 +789,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 5.5.2;
-				PRODUCT_BUNDLE_IDENTIFIER = com.openui.openui.ShareExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dalenw.openui.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -824,13 +840,6 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		3835739F3040FCDC00BB4B52 /* XCLocalSwiftPackageReference "../MarkdownView" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../MarkdownView;
-		};
-/* End XCLocalSwiftPackageReference section */
-
 /* Begin XCRemoteSwiftPackageReference section */
 		3800STREF2F00000000ST00F /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -859,6 +868,14 @@
 		38FEA3162FA2A18600A98F25 /* XCRemoteSwiftPackageReference "mlx-audio-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/Blaizzy/mlx-audio-swift.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		D1757EB4304A9CC70040422E /* XCRemoteSwiftPackageReference "MarkdownView" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Ichigo3766/MarkdownView";
 			requirement = {
 				branch = main;
 				kind = branch;
@@ -1000,6 +1017,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 38FEA3162FA2A18600A98F25 /* XCRemoteSwiftPackageReference "mlx-audio-swift" */;
 			productName = MLXAudioTTS;
+		};
+		D1757EB5304A9CC70040422E /* MarkdownParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D1757EB4304A9CC70040422E /* XCRemoteSwiftPackageReference "MarkdownView" */;
+			productName = MarkdownParser;
+		};
+		D1757EB7304A9CC70040422E /* MarkdownView */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D1757EB4304A9CC70040422E /* XCRemoteSwiftPackageReference "MarkdownView" */;
+			productName = MarkdownView;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
