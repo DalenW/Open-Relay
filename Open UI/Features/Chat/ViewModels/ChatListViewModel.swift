@@ -280,6 +280,21 @@ final class ChatListViewModel {
     func loadConversations() async {
         guard let manager else { return }
 
+        // ── Stale-while-revalidate: hydrate from the disk cache first ──
+        // Mirrors the optimistic-auth pattern: render last session's list
+        // instantly, then the network fetch below replaces it with fresh data.
+        // If the network fails (offline launch), the cached list stays visible.
+        if conversations.isEmpty, !isRefreshing {
+            let serverKey = manager.baseURL
+            if let cached = ConversationListCache.shared.load(serverBaseURL: serverKey),
+               !cached.isEmpty {
+                conversations = cached.filter { !$0.pinned }
+                pinnedConversations = cached.filter(\.pinned)
+                isLoading = false
+                logger.info("Hydrated \(cached.count) conversations from list cache")
+            }
+        }
+
         isLoading = true
         errorMessage = nil
 
@@ -297,6 +312,9 @@ final class ChatListViewModel {
             conversations = page1
             pinnedConversations = pinned
             isLoading = false
+
+            // Persist the fresh page-1 state so the next launch can hydrate instantly.
+            ConversationListCache.shared.store(page1 + pinned, serverBaseURL: manager.baseURL)
 
             // If page 1 was empty, we're done
             guard !page1.isEmpty else { return }
@@ -370,6 +388,17 @@ final class ChatListViewModel {
         pinnedConversations = []
         lastRefreshDate = nil
         folderViewModel.folders = []
+    }
+
+    /// Persists the current list state to the disk cache.
+    /// Call after local mutations (rename, pin, archive, delete) so the next launch
+    /// hydrates with the mutation applied even if the network fetch hasn't run yet.
+    func persistToCache() {
+        guard let manager else { return }
+        ConversationListCache.shared.store(
+            conversations + pinnedConversations,
+            serverBaseURL: manager.baseURL
+        )
     }
 
     /// Silently refreshes conversations if enough time has passed since the last refresh.
@@ -490,6 +519,15 @@ final class ChatListViewModel {
 
         isFetchingAllPages = false
         logger.info("Background fetch complete. Total conversations: \(self.conversations.count)")
+
+        // Persist the full merged list (all pages) so the next launch hydrates
+        // with the complete drawer, not just page 1.
+        if !Task.isCancelled {
+            ConversationListCache.shared.store(
+                self.conversations + self.pinnedConversations,
+                serverBaseURL: manager.baseURL
+            )
+        }
     }
 
     // MARK: - Private Helpers
@@ -592,6 +630,7 @@ final class ChatListViewModel {
         }
 
         renamingConversation = nil
+        persistToCache()
 
         do {
             try await manager.renameConversation(id: conversation.id, title: newTitle)
@@ -614,6 +653,8 @@ final class ChatListViewModel {
         let removed = conversations.first { $0.id == id }
         conversations.removeAll(where: { $0.id == id })
         pinnedConversations.removeAll { $0.id == id }
+        persistToCache()
+        ConversationContentCache.shared.remove(conversationId: id, serverBaseURL: manager.baseURL)
 
         do {
             try await manager.deleteConversation(id: id)
@@ -651,6 +692,7 @@ final class ChatListViewModel {
             try await manager.pinConversation(id: conversation.id, pinned: newPinned)
             // Re-fetch authoritative list from server
             pinnedConversations = (try? await manager.apiClient.getPinnedConversations()) ?? pinnedConversations
+            persistToCache()
 
             // If we just unpinned a folder chat, reload that folder's chat list
             // so the chat reappears in the sidebar immediately.
@@ -693,6 +735,7 @@ final class ChatListViewModel {
                 id: conversation.id,
                 archived: newArchived
             )
+            persistToCache()
         } catch {
             logger.error("Failed to toggle archive: \(error.localizedDescription)")
             // Revert on failure

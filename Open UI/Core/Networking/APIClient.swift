@@ -792,6 +792,15 @@ final class APIClient: @unchecked Sendable {
     func getConversation(id: String) async throws -> Conversation {
         let (data, _) = try await network.requestRaw(path: "/api/v1/chats/\(id)")
 
+        // Write-through: persist the raw server payload so the next cold-start
+        // restore of this chat can rehydrate instantly (stale-while-revalidate).
+        // Raw bytes round-trip losslessly through parseFullConversation.
+        ConversationContentCache.shared.storeRaw(
+            data,
+            conversationId: id,
+            serverBaseURL: baseURL
+        )
+
         // Parse the full conversation (MessageHistory.fromServerJSON + InlineImageStore.extractAndReplace
         // per node) on a background thread so we never block the main actor — even when called from a
         // @MainActor context like ChatViewModel.loadConversation(). Large chats with hundreds of messages
@@ -805,6 +814,27 @@ final class APIClient: @unchecked Sendable {
                     ),
                     data: data
                 )
+            }
+            return await self.parseFullConversation(json)
+        }.value
+    }
+
+    /// Parses a **cached** raw conversation payload (previously stored by
+    /// `getConversation`) into a `Conversation`, reusing the exact same parsing
+    /// pipeline as a live fetch. Returns `nil` when no cached payload exists.
+    ///
+    /// Called by `ChatViewModel.loadConversation` for instant cold-start
+    /// chat restore — the network fetch still runs afterwards and replaces
+    /// this snapshot with authoritative data.
+    func getCachedConversation(id: String) async -> Conversation? {
+        guard let data = ConversationContentCache.shared.loadRaw(
+            conversationId: id,
+            serverBaseURL: baseURL
+        ) else { return nil }
+
+        return try? await Task.detached(priority: .userInitiated) { [self] in
+            guard let json = (try JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+                return nil
             }
             return await self.parseFullConversation(json)
         }.value

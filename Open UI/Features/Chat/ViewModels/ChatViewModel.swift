@@ -321,6 +321,9 @@ final class ChatViewModel {
     /// can await it before building a request — prevents the race where params are read
     /// before the async fetch completes (which caused the system prompt to be ignored).
     private var userDefaultParamsTask: Task<Void, Never>?
+    /// Debounced content-cache write-through: re-fetches the canonical server payload
+    /// after sync bursts settle so the next cold-start hydrates with post-sync state.
+    private var contentCacheRefreshTask: Task<Void, Never>?
     private var chatSubscription: SocketSubscription?
     private var channelSubscription: SocketSubscription?
     /// Persistent passive socket listener that observes events for this chat
@@ -490,6 +493,25 @@ final class ChatViewModel {
             title: conv.title,
             chatFiles: chatFiles
         )
+
+        // Write-through to the content cache: after a successful sync, re-fetch
+        // the canonical server payload so the next cold-start restore of this
+        // chat hydrates with the settled, post-sync state (never mid-stream —
+        // this sync only runs once streaming settles). Debounced: bursts of
+        // syncs (send → stream-complete → follow-ups) collapse into one fetch.
+        scheduleContentCacheRefresh(chatId: chatId)
+    }
+
+    /// Debounced content-cache write-through. Cancels any pending refresh and
+    /// starts a new trailing one — only the last sync in a burst hits the network.
+    private func scheduleContentCacheRefresh(chatId: String) {
+        contentCacheRefreshTask?.cancel()
+        contentCacheRefreshTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2s debounce
+            guard !Task.isCancelled else { return }
+            // getConversation's own write-through performs the cache store.
+            _ = try? await self?.manager?.apiClient.getConversation(id: chatId)
+        }
     }
 
     var selectedModel: AIModel? {
@@ -1031,58 +1053,120 @@ final class ChatViewModel {
         guard let conversationId, let manager else { return }
         isLoadingConversation = true
         errorMessage = nil
+
+        // ── Stale-while-revalidate: hydrate from the content cache first ──
+        // If this chat has a cached raw payload (stored post-settle by a previous
+        // session's fetch — never mid-stream), parse and display it immediately.
+        // The network revalidate runs in the background and swaps in authoritative
+        // server data when it arrives, so the curtain lifts on the cached copy and
+        // the user sees the chat instantly on cold-start restore.
+        if conversation == nil,
+           let cached = await manager.apiClient.getCachedConversation(id: conversationId) {
+            applyLoadedConversation(cached)
+            isLoadingConversation = false
+            logger.info("Hydrated conversation \(conversationId) from content cache (\(cached.messages.count) messages)")
+            // Background revalidate — never blocks first render.
+            Task { await revalidateConversationFromServer() }
+            return
+        }
+
+        await fetchConversationFromNetwork()
+    }
+
+    /// Fetches the conversation from the network and applies it (the original,
+    /// load-blocking path — used when no cache entry exists).
+    private func fetchConversationFromNetwork() async {
+        guard let conversationId, let manager else { return }
         do {
             let fetched = try await manager.fetchConversation(id: conversationId)
             // Always use server data as the source of truth.
             // Versions are now stored as sibling messages on the server,
             // so server-fetched data already contains them.
-            conversation = fetched
-            // Clear the deleted-node blacklist — fresh load from server is the source of truth
-            deletedMessageIds = []
-            // Populate tasks from the server conversation
-            tasks = fetched.tasks
-            // Populate top-level chat files (mirrors OWUI `chatFiles = chat?.files ?? []`)
-            chatFiles = fetched.files
-            // Always adopt the last-used model for existing chats.
-            // Priority: last assistant message's model (the actual model used
-            // most recently) > conversation-level model > fallback.
-            // This ensures returning to a chat uses the model from the most
-            // recent response, even if it was changed mid-conversation from
-            // the web UI or another client.
-            if let lastAssistantModel = fetched.messages.last(where: { $0.role == .assistant })?.model,
-               !lastAssistantModel.isEmpty {
-                selectedModelId = lastAssistantModel
-            } else if let conversationModel = fetched.model, !conversationModel.isEmpty {
-                selectedModelId = conversationModel
-            } else if selectedModelId == nil {
-                selectedModelId = availableModels.first?.id
-            }
+            applyLoadedConversation(fetched)
         } catch {
             logger.error("Failed to load conversation: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
+        }
+        isLoadingConversation = false
+    }
+
+    /// Background revalidate for a cache-hydrated conversation. Swaps in the
+    /// server's authoritative copy only when it actually differs — and never
+    /// while the user is streaming or has already mutated local state.
+    private func revalidateConversationFromServer() async {
+        guard let conversationId, let manager else { return }
+        guard let fetched = try? await manager.fetchConversation(id: conversationId) else {
+            logger.info("Content-cache revalidate failed (offline?) — keeping cached copy")
+            return
+        }
+        // Safety guards: if the user is streaming or the local tree has grown
+        // (they acted before the revalidate landed), the local state is newer
+        // than anything we cached — skip the swap. The normal sync paths
+        // (syncWithServer / passive socket) reconcile from here.
+        guard !isStreaming else { return }
+        guard (conversation?.messages.count ?? 0) <= fetched.messages.count else { return }
+
+        // Conversation equality is cheap (id/title/message content-hash), so this
+        // comparison costs far less than a UI invalidation. Only swap when the
+        // server copy actually differs from what we're showing.
+        guard fetched != conversation else {
+            logger.debug("Content-cache revalidate: server copy identical — no swap")
+            return
+        }
+
+        applyLoadedConversation(fetched, isBackgroundRevalidate: true)
+        logger.info("Content-cache revalidate: swapped in fresh server copy")
+    }
+
+    /// Applies a loaded conversation (network or cache) to this view model's state.
+    /// Shared by the blocking network path and the background revalidate.
+    private func applyLoadedConversation(_ fetched: Conversation, isBackgroundRevalidate: Bool = false) {
+        conversation = fetched
+        // Clear the deleted-node blacklist — fresh data is the source of truth
+        deletedMessageIds = []
+        // Populate tasks from the server conversation
+        tasks = fetched.tasks
+        // Populate top-level chat files (mirrors OWUI `chatFiles = chat?.files ?? []`)
+        chatFiles = fetched.files
+        // Always adopt the last-used model for existing chats.
+        // Priority: last assistant message's model (the actual model used
+        // most recently) > conversation-level model > fallback.
+        // This ensures returning to a chat uses the model from the most
+        // recent response, even if it was changed mid-conversation from
+        // the web UI or another client.
+        if let lastAssistantModel = fetched.messages.last(where: { $0.role == .assistant })?.model,
+           !lastAssistantModel.isEmpty {
+            selectedModelId = lastAssistantModel
+        } else if let conversationModel = fetched.model, !conversationModel.isEmpty {
+            selectedModelId = conversationModel
+        } else if selectedModelId == nil {
+            selectedModelId = availableModels.first?.id
         }
         // Re-derive flat messages from the history tree when the tree has more nodes
         // than the flat messages array. This handles background sub-agent messages which
         // the server appends only to the history tree — `chat.messages` stays at 2 entries
         // while the tree has 4. After re-deriving, push the updated currentId to the
         // server so WebUI also navigates to the full branch.
-        if conversation?.history.isPopulated == true {
-            let treeMessages = conversation!.history.createMessagesList()
-            if treeMessages.count > (conversation?.messages.count ?? 0) {
-                conversation!.rederiveMessages()
-                logger.info("loadConversation: re-derived \(treeMessages.count) messages from tree (was \(self.conversation?.messages.count ?? 0) from flat array)")
-                Task { await self.syncCurrentIdToServer() }
+        if fetched.history.isPopulated == true {
+            let treeMessages = fetched.history.createMessagesList()
+            if treeMessages.count > fetched.messages.count {
+                conversation?.rederiveMessages()
+                logger.info("applyLoadedConversation: re-derived \(treeMessages.count) messages from tree (was \(fetched.messages.count) from flat array)")
+                if !isBackgroundRevalidate {
+                    Task { await self.syncCurrentIdToServer() }
+                }
             }
         }
         // Clear stale override tracking so the model's server defaults apply cleanly
         // when the user opens an existing chat. We don't persist per-chat feature state,
         // so starting fresh here is the correct behaviour (Bug 2 fix).
-        userDisabledBuiltinFeatures = []
-        // Restore HITL mode from conversation params or user preference
-        restoreToolApprovalMode()
-        // Scan for any pending HITL actions in the loaded history
-        scanForPendingToolActions()
-        isLoadingConversation = false
+        if !isBackgroundRevalidate {
+            userDisabledBuiltinFeatures = []
+            // Restore HITL mode from conversation params or user preference
+            restoreToolApprovalMode()
+            // Scan for any pending HITL actions in the loaded history
+            scanForPendingToolActions()
+        }
     }
 
     /// Syncs local conversation state with the server.

@@ -261,6 +261,11 @@ final class StorageManager: @unchecked Sendable {
             }
         }
 
+        // 7. Clear the conversation list + content caches (stale-while-revalidate
+        // launch caches must never leak across accounts/servers).
+        ConversationListCache.shared.clearAll()
+        ConversationContentCache.shared.clearAll()
+
         logger.info("All user data cleared")
     }
 

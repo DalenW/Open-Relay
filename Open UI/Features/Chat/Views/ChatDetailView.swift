@@ -41,6 +41,20 @@ private final class PumpRef {
     /// The ID of the message currently nearest the top of the visible viewport.
     /// Updated continuously; read at FAB tap-time for layout-stable jump targeting.
     var topmostVisibleMessageId: String? = nil
+    /// True while a user gesture (finger touch or inertia deceleration) is driving
+    /// the scroll view. Used by the streaming pump to yield to the user's finger/inertia.
+    /// Layout reflows, WKWebView resizes, and programmatic scrolls never set this flag
+    /// because they emit .animating/.idle phases, not .interacting or .decelerating.
+    /// Stored here (not @State) because it is never rendered — @State writes fired
+    /// full body re-evaluations on every scroll phase transition.
+    var isUserDriving = false
+    /// True ONLY while the user's finger is physically on the screen (.interacting phase).
+    /// Used exclusively for nav-bar hide/show and isScrolledUp trip logic.
+    var isFingerDriving = false
+    /// True while iOS is decelerating (coasting) after the user lifts their finger.
+    /// The streaming pump must NOT fire during deceleration — each programmatic
+    /// scrollTo() call cancels the OS momentum curve.
+    var isDecelerating = false
 }
 
 // MARK: - Chat Detail View
@@ -91,23 +105,9 @@ struct ChatDetailView: View {
     // to avoid @State observation overhead — writing them on every 120Hz scroll frame was
     // causing the entire view body to re-evaluate, causing low-FPS scrolling. They are read
     // at button tap-time from _pumpRef where needed.
-    /// True while a user gesture (finger touch or inertia deceleration) is driving
-    /// the scroll view. Used by the streaming pump to yield to the user's finger/inertia.
-    /// Layout reflows, WKWebView resizes, and programmatic scrolls never set this flag
-    /// because they emit .animating/.idle phases, not .interacting or .decelerating.
-    @State private var isUserDriving = false
-    /// True ONLY while the user's finger is physically on the screen (.interacting phase).
-    /// Used exclusively for nav-bar hide/show and isScrolledUp trip so that inertia
-    /// deceleration + bounce recovery (which is .decelerating, NOT .interacting) can
-    /// never trigger jittery nav-bar show/hide at the bottom edge.
-    @State private var isFingerDriving = false
-    /// True while iOS is decelerating (coasting) after the user lifts their finger.
-    /// The streaming pump must NOT fire during deceleration — each programmatic
-    /// scrollTo() call cancels the OS momentum curve, causing the instant-stop
-    /// behaviour the user reported (swipe → lifts finger → scroll stops dead instead
-    /// of coasting to a smooth stop). Stored in @State rather than PumpRef so that
-    /// the pump guard inside onScrollGeometryChange reads the live value.
-    @State private var isDecelerating = false
+    // isUserDriving / isFingerDriving / isDecelerating live in _pumpRef (PumpRef class)
+    // to avoid @State observation overhead — they are never rendered, but writing
+    // them as @State re-evaluated the entire body on every scroll phase transition.
     /// Rate-limit timestamp for the streaming scroll pump (writes are non-rendering).
     private let _pumpRef = PumpRef()
     /// Whether the navigation bar is currently hidden.
@@ -180,9 +180,6 @@ struct ChatDetailView: View {
     /// When nil, the assistant shows its own current content.
     /// When set, the assistant displays this overridden content instead.
     @State private var assistantContentOverride: [String: String] = [:]
-
-    // Bug 10: cached indexMap rebuilt only when message count changes.
-    @State private var cachedIndexMap: [String: Int] = [:]
 
     // MARK: Chat menu actions
     @State private var showDeleteChatConfirm = false
@@ -1583,7 +1580,7 @@ struct ChatDetailView: View {
             // Capture whether the user was scrolled up BEFORE resetting the flag.
             let wasScrolledUp = isScrolledUp
             isScrolledUp = false
-            isUserDriving = false
+            _pumpRef.isUserDriving = false
             // Arm suppression window so the spring scroll's deceleration phase
             // never falsely sets isScrolledUp = true via the offset observer.
             _pumpRef.programmaticScrollUntil = Date().addingTimeInterval(0.5)
@@ -1643,7 +1640,7 @@ struct ChatDetailView: View {
                 // the response placeholder is just appearing so the scroll distance
                 // is negligible and the instant jump is invisible.
                 isScrolledUp = false
-                isUserDriving = false
+                _pumpRef.isUserDriving = false
                 _pumpRef.programmaticScrollUntil = Date().addingTimeInterval(0.4)
                 scrollPosition.scrollTo(edge: .bottom)
             } else if !newStreaming && oldStreaming {
@@ -1666,7 +1663,7 @@ struct ChatDetailView: View {
         .onChange(of: viewModel.regenerateScrollToken) { _, _ in
             let wasScrolledUp = isScrolledUp
             isScrolledUp = false
-            isUserDriving = false
+            _pumpRef.isUserDriving = false
             if wasScrolledUp {
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 60_000_000) // 60ms layout settle
@@ -1729,16 +1726,16 @@ struct ChatDetailView: View {
             // and inertia finishes (.decelerating → .idle).
             switch newPhase {
             case .interacting, .decelerating:
-                isUserDriving = true
+                _pumpRef.isUserDriving = true
             case .idle:
-                isUserDriving = false
+                _pumpRef.isUserDriving = false
             case .animating:
                 // A programmatic scrollTo() just fired (either the streaming pump or a
                 // FAB tap). Do NOT change isUserDriving — if the user was driving before
                 // this programmatic scroll, keep the pump suppressed.
                 break
             default:
-                isUserDriving = false
+                _pumpRef.isUserDriving = false
             }
             // isDecelerating: true while iOS is coasting after the user lifts their finger.
             // The streaming pump must NOT fire during deceleration — each programmatic
@@ -1749,7 +1746,7 @@ struct ChatDetailView: View {
             // deceleration should not reset the flag (very rare race, defensive).
             switch newPhase {
             case .decelerating:
-                isDecelerating = true
+                _pumpRef.isDecelerating = true
                 // During streaming: the moment the user lifts their finger and iOS starts
                 // coasting, permanently lock out the pump by setting isScrolledUp = true.
                 // Without this, isDecelerating blocks the pump DURING the coast, but the
@@ -1762,17 +1759,17 @@ struct ChatDetailView: View {
                     isScrolledUp = true
                 }
             case .idle, .interacting:
-                isDecelerating = false
+                _pumpRef.isDecelerating = false
             case .animating:
                 break
             default:
-                isDecelerating = false
+                _pumpRef.isDecelerating = false
             }
             // isFingerDriving: ONLY set while the finger is physically on screen (.interacting).
             // The nav-bar and isScrolledUp upward-delta logic use this flag, NOT isUserDriving,
             // so that inertia deceleration + bottom-bounce recovery never trigger jittery
             // nav-bar hide/show or false isScrolledUp trips at the bottom edge.
-            isFingerDriving = (newPhase == .interacting)
+            _pumpRef.isFingerDriving = (newPhase == .interacting)
         }
         // ── Direct finger break-out ──────────────────────────────────────────
         // When the glide animation is running the scroll phase is `.animating`,
@@ -1785,8 +1782,8 @@ struct ChatDetailView: View {
         .simultaneousGesture(
             DragGesture(minimumDistance: 4)
                 .onChanged { value in
-                    if !isUserDriving {
-                        isUserDriving = true
+                    if !_pumpRef.isUserDriving {
+                        _pumpRef.isUserDriving = true
                         // Lift the programmatic suppression window so the offset
                         // handler immediately treats this as a genuine user scroll.
                         _pumpRef.programmaticScrollUntil = .distantPast
@@ -1864,7 +1861,7 @@ struct ChatDetailView: View {
                     isScrolledUp = false
                     userMessageJumpIndex = nil
                 }
-            } else if isUserDriving && !isBouncing {
+            } else if _pumpRef.isUserDriving && !isBouncing {
                 // User's finger (or inertia) is actively driving the scroll view —
                 // the ONLY condition under which auto-scroll is allowed to disengage.
                 // Require a small delta (>2pt) so sub-pixel layout reflow/settling noise
@@ -1891,7 +1888,7 @@ struct ChatDetailView: View {
                 _pumpRef.lastNavBarOffsetY = newOffset.y
 
                 // Only respond to genuine finger-contact drags, not inertia or streaming pump.
-                if !navSuppressed && isFingerDriving && !viewModel.isStreaming {
+                if !navSuppressed && _pumpRef.isFingerDriving && !viewModel.isStreaming {
                     if distanceFromBottom > 80 {
                         if navDelta > 1 && !navBarHidden {
                             withAnimation(.easeInOut(duration: 0.2)) { navBarHidden = true }
@@ -1968,7 +1965,7 @@ struct ChatDetailView: View {
             // Guards: not user-driving, not manually scrolled up, not paginating.
             let distFromBottom = max(0, contentHeight - containerHeight - newOffset.y)
             let driftedFar = distFromBottom > 4
-            if driftedFar && viewModel.isStreaming && !isUserDriving && !isDecelerating && !isScrolledUp && !isLoadingMoreMessages {
+            if driftedFar && viewModel.isStreaming && !_pumpRef.isUserDriving && !_pumpRef.isDecelerating && !isScrolledUp && !isLoadingMoreMessages {
                 let now = Date()
                 guard now.timeIntervalSince(_pumpRef.lastScrollTime) >= 0.016 else { return }
                 _pumpRef.lastScrollTime = now
@@ -2179,35 +2176,30 @@ struct ChatDetailView: View {
         let effectiveEnd = windowEnd ?? total
         let effectiveStart = max(0, effectiveEnd - windowSize)
         let clampedEnd = min(effectiveEnd, total)
-        let messages = Array(allMessages[effectiveStart..<clampedEnd])
+        // ArraySlice shares the array's storage — no per-eval element copies
+        // (the previous `Array(...)` materialization copied rows on every eval).
+        let messages = allMessages[effectiveStart..<clampedEnd]
         let hasMoreAbove = effectiveStart > 0
         let hasMoreBelow = clampedEnd < total
 
-        // Bug 10: indexMap was rebuilt (O(n) allocation) on every messagesList evaluation.
-        // Cache it as a @State dictionary, only rebuilt when the message count changes
-        // (messages are append-only so indices are stable until a deletion).
-        // Avoid mutating @State directly during view update — compute locally and
-        // schedule the cache update for after the current render pass.
-        //
-        let lastMsgId = allMessages.last?.id ?? ""
-        let indexMap: [String: Int]
-        if cachedIndexMap.count == total && !cachedIndexMap.isEmpty && cachedIndexMap[lastMsgId] != nil {
-            indexMap = cachedIndexMap
-        } else {
-            let freshMap = Dictionary(allMessages.enumerated().map { ($1.id, $0) },
-                                      uniquingKeysWith: { first, _ in first })
-            indexMap = freshMap
-            Task { @MainActor in cachedIndexMap = freshMap }
-        }
-
         // Split point: index of the last user message *within the visible slice*.
         // Everything from here to the end is the "last turn".
-        // If there are no user messages, splitAt == count → no split, all normal.
+        // If there are no user messages, splitAt == endIndex → no split, all normal.
+        // NOTE: `messages` is an ArraySlice — its indices are in the base array's
+        // space, so splitAt is an absolute index usable with suffix(from:), and
+        // prefix()/count comparisons convert via startIndex.
         let lastUserIdx = messages.lastIndex(where: { $0.role == .user })
-        let splitAt = lastUserIdx ?? messages.count
+        let splitAt = lastUserIdx ?? messages.endIndex
+        let splitOffset = splitAt - messages.startIndex
 
         // Only apply minHeight trick when the window includes the actual last message
         let windowIncludesEnd = (windowEnd == nil || clampedEnd >= total)
+
+        // Precompute the "last assistant row" test once. A row is the last
+        // assistant row iff it IS the final message of the whole conversation.
+        // (Previously each row body re-read `viewModel.messages.count` and the
+        // window maintained an O(n) id→index map just to compute this.)
+        let lastMessageId = allMessages.last?.id
 
         return Group {
             // ── "Loading more" indicator at the top ──
@@ -2220,22 +2212,26 @@ struct ChatDetailView: View {
             }
 
             // ── Messages before the last turn (natural height) ──
-            ForEach(Array(messages.prefix(splitAt))) { message in
-                let index = indexMap[message.id] ?? 0
-                messageRow(message: message, index: index)
+            ForEach(messages.prefix(splitOffset)) { message in
+                messageRow(message: message,
+                           isLastAssistant: message.role == .assistant && message.id == lastMessageId)
                     .id(message.id)
                     .transition(.opacity)
             }
-            .animation(.easeInOut(duration: 0.2), value: messages.prefix(splitAt).map(\.id))
+            // Animate only when the conversation's message count changes
+            // (send/delete). Keying on the visible-ID array fired a 0.2s
+            // opacity animation on EVERY window slide — a major source of
+            // scroll hitching on long chats.
+            .animation(.easeInOut(duration: 0.2), value: total)
 
             // ── Last turn (user msg + assistant reply) with minHeight ──
-            if splitAt < messages.count {
+            if splitOffset < messages.count {
                 VStack(spacing: 0) {
-                    ForEach(Array(messages.suffix(from: splitAt))) { message in
-                        let index = indexMap[message.id] ?? 0
-                        messageRow(message: message, index: index)
-                            .id(message.id)
-                            .transition(.opacity)
+                    ForEach(messages.suffix(from: splitAt)) { message in
+                        messageRow(message: message,
+                                   isLastAssistant: message.role == .assistant && message.id == lastMessageId)
+                                .id(message.id)
+                                .transition(.opacity)
                     }
                 }
                 .frame(minHeight: windowIncludesEnd ? max(viewState_containerHeight, 0) : nil,
@@ -2298,7 +2294,7 @@ struct ChatDetailView: View {
     }
 
     @ViewBuilder
-    private func messageRow(message: ChatMessage, index: Int) -> some View {
+    private func messageRow(message: ChatMessage, isLastAssistant: Bool) -> some View {
         // Internal sub-agent completion messages get a compact banner, not a full bubble.
         // The isInternalMessage flag is set from meta.internal on the server node, but as a
         // safety net we also check the content prefix — OpenWebUI always injects these with
@@ -2309,7 +2305,7 @@ struct ChatDetailView: View {
             subagentCompletionBanner(message: message)
         } else {
 
-        let isLastAssistant = message.role == .assistant && index == viewModel.messages.count - 1
+        let isLastAssistantFinal = isLastAssistant
 
         VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 0) {
 
@@ -2348,7 +2344,7 @@ struct ChatDetailView: View {
             }
 
             // ── Message bubble / content ──
-            messageBubble(for: message, isLastAssistant: isLastAssistant)
+            messageBubble(for: message, isLastAssistant: isLastAssistantFinal)
 
             // ── Tool-generated images ──
             // AnimatedPresence smoothly expands the height when files become available
