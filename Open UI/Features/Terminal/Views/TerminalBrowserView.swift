@@ -154,11 +154,8 @@ struct TerminalBrowserView: View {
 
             // ── Normal file-browser chrome (hidden in fullscreen) ──
             if !isTerminalFullscreen {
-                headerBar
-                Divider().foregroundStyle(theme.cardBorder.opacity(0.3))
-                breadcrumbBar.padding(.horizontal, 12).padding(.vertical, 6)
-                Divider().foregroundStyle(theme.cardBorder.opacity(0.3))
-                actionToolbar.padding(.horizontal, 12).padding(.vertical, 6)
+                // Compact single-row header: close | breadcrumb (scrollable) | actions
+                compactHeaderBar
                 Divider().foregroundStyle(theme.cardBorder.opacity(0.3))
                 fileListArea
             }
@@ -190,6 +187,22 @@ struct TerminalBrowserView: View {
                 Task { await viewModel.createFolder(name: name) }
             }
         }
+        .alert(
+            "Rename",
+            isPresented: Binding(
+                get: { viewModel.renamingFile != nil },
+                set: { if !$0 { viewModel.renamingFile = nil } }
+            )
+        ) {
+            TextField("New name", text: $viewModel.renameText)
+            Button("Cancel", role: .cancel) { viewModel.renamingFile = nil }
+            Button("Rename") {
+                guard let item = viewModel.renamingFile else { return }
+                let newName = viewModel.renameText
+                viewModel.renamingFile = nil
+                Task { await viewModel.renameItem(item, to: newName) }
+            }
+        }
         .confirmationDialog(
             "Delete \(confirmDeleteItem?.name ?? "")?",
             isPresented: Binding(get: { confirmDeleteItem != nil }, set: { if !$0 { confirmDeleteItem = nil } }),
@@ -215,67 +228,59 @@ struct TerminalBrowserView: View {
         .sheet(item: $shareFileURL) { url in ShareSheetView(activityItems: [url]) }
     }
 
-    // MARK: - Header
+    // MARK: - Compact Header (breadcrumb + actions in one row)
 
-    private var headerBar: some View {
-        HStack {
+    private var compactHeaderBar: some View {
+        HStack(spacing: 6) {
+            // Close button
             Button { onDismiss() } label: {
                 Image(systemName: "xmark")
-                    .scaledFont(size: 14, weight: .semibold)
+                    .scaledFont(size: 13, weight: .semibold)
                     .foregroundStyle(theme.textSecondary)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 28, height: 28)
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            Spacer()
-            Text("Files").scaledFont(size: 16, weight: .bold).foregroundStyle(theme.textPrimary)
-            Spacer()
-            Color.clear.frame(width: 32, height: 32)
-        }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-    }
 
-    // MARK: - Breadcrumb
-
-    private var breadcrumbBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) {
-                ForEach(Array(viewModel.pathSegments.enumerated()), id: \.element.path) { index, segment in
-                    if index > 0 {
-                        Image(systemName: "chevron.right").scaledFont(size: 9, weight: .bold).foregroundStyle(theme.textTertiary)
+            // Scrollable breadcrumb — fills available space
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(Array(viewModel.pathSegments.enumerated()), id: \.element.path) { index, segment in
+                        if index > 0 {
+                            Image(systemName: "chevron.right")
+                                .scaledFont(size: 8, weight: .bold)
+                                .foregroundStyle(theme.textTertiary)
+                        }
+                        Button {
+                            viewModel.navigateToPath(segment.path); Haptics.play(.light)
+                        } label: {
+                            Text(segment.name)
+                                .scaledFont(size: 12, weight: segment.path == viewModel.currentPath ? .bold : .medium)
+                                .foregroundStyle(segment.path == viewModel.currentPath ? theme.brandPrimary : theme.textSecondary)
+                                .padding(.horizontal, 5).padding(.vertical, 2)
+                                .background(segment.path == viewModel.currentPath ? theme.brandPrimary.opacity(0.1) : Color.clear)
+                                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    Button {
-                        viewModel.navigateToPath(segment.path); Haptics.play(.light)
-                    } label: {
-                        Text(segment.name)
-                            .scaledFont(size: 13, weight: segment.path == viewModel.currentPath ? .bold : .medium)
-                            .foregroundStyle(segment.path == viewModel.currentPath ? theme.brandPrimary : theme.textSecondary)
-                            .padding(.horizontal, 6).padding(.vertical, 3)
-                            .background(segment.path == viewModel.currentPath ? theme.brandPrimary.opacity(0.1) : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
                 }
             }
-        }
-    }
 
-    // MARK: - Action Toolbar
-
-    private var actionToolbar: some View {
-        HStack(spacing: 12) {
+            // Action icons (refresh, new folder, upload)
             Button { viewModel.refresh(); Haptics.play(.light) } label: {
-                Image(systemName: "arrow.clockwise").scaledFont(size: 14, weight: .medium).foregroundStyle(theme.textSecondary)
+                Image(systemName: "arrow.clockwise").scaledFont(size: 13, weight: .medium).foregroundStyle(theme.textSecondary)
+                    .frame(width: 28, height: 28).contentShape(Circle())
             }.buttonStyle(.plain)
             Button { viewModel.showNewFolderAlert = true; Haptics.play(.light) } label: {
-                Image(systemName: "folder.badge.plus").scaledFont(size: 14, weight: .medium).foregroundStyle(theme.textSecondary)
+                Image(systemName: "folder.badge.plus").scaledFont(size: 13, weight: .medium).foregroundStyle(theme.textSecondary)
+                    .frame(width: 28, height: 28).contentShape(Circle())
             }.buttonStyle(.plain)
             Button { showFilePicker = true; Haptics.play(.light) } label: {
-                Image(systemName: "arrow.up.doc").scaledFont(size: 14, weight: .medium).foregroundStyle(theme.textSecondary)
+                Image(systemName: "arrow.up.doc").scaledFont(size: 13, weight: .medium).foregroundStyle(theme.textSecondary)
+                    .frame(width: 28, height: 28).contentShape(Circle())
             }.buttonStyle(.plain)
-            Spacer()
-            Text("\(viewModel.items.count) items").scaledFont(size: 12, weight: .medium).foregroundStyle(theme.textTertiary)
         }
+        .padding(.horizontal, 10).padding(.vertical, 8)
     }
 
     // MARK: - File List
@@ -347,8 +352,17 @@ struct TerminalBrowserView: View {
                 Button { Task { if let url = await viewModel.downloadFile(item) { previewFileURL = url } } } label: { Label("Preview", systemImage: "eye") }
                 Button { Task { if let url = await viewModel.downloadFile(item) { shareFileURL = url } } } label: { Label("Download", systemImage: "arrow.down.circle") }
             }
+            Button {
+                NotificationCenter.default.post(name: .terminalInsertPath, object: item.path)
+                Haptics.notify(.success)
+            } label: { Label("Insert Path into Chat", systemImage: "arrow.turn.down.left") }
             Button { UIPasteboard.general.string = item.path; Haptics.notify(.success) } label: { Label("Copy Path", systemImage: "doc.on.doc") }
             Divider()
+            Button {
+                viewModel.renamingFile = item
+                viewModel.renameText = item.name
+                Haptics.play(.light)
+            } label: { Label("Rename", systemImage: "pencil") }
             Button(role: .destructive) { confirmDeleteItem = item } label: { Label("Delete", systemImage: "trash") }
         }
     }

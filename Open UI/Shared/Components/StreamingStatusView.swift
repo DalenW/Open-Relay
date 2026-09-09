@@ -322,6 +322,10 @@ struct StreamingStatusView: View {
             }
             return desc ?? "Querying knowledge base…"
 
+        case "context_compaction":
+            if isDone { return desc ?? "Context compacted" }
+            return desc ?? "Compacting context…"
+
         case "reconnecting":
             return desc ?? "Reconnecting…"
 

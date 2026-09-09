@@ -26,6 +26,8 @@
 		387CA4102F882523000B5152 /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = 387CA40F2F882523000B5152 /* MarkdownView */; };
 		387CAAD62F8AB953000B5152 /* MarkdownParser in Frameworks */ = {isa = PBXBuildFile; productRef = 387CAAD52F8AB953000B5152 /* MarkdownParser */; };
 		387CAAD82F8AB953000B5152 /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = 387CAAD72F8AB953000B5152 /* MarkdownView */; };
+		3883D6B3305061D100F5DC07 /* MarkdownParser in Frameworks */ = {isa = PBXBuildFile; productRef = 3883D6B2305061D100F5DC07 /* MarkdownParser */; };
+		3883D6B5305061D100F5DC07 /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = 3883D6B4305061D100F5DC07 /* MarkdownView */; };
 		388C02ED2FB44BD60098FB4F /* MarkdownParser in Frameworks */ = {isa = PBXBuildFile; productRef = 388C02EC2FB44BD60098FB4F /* MarkdownParser */; };
 		388C02EF2FB44BD60098FB4F /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = 388C02EE2FB44BD60098FB4F /* MarkdownView */; };
 		388C02F72FB5131C0098FB4F /* MarkdownParser in Frameworks */ = {isa = PBXBuildFile; productRef = 388C02F62FB5131C0098FB4F /* MarkdownParser */; };
@@ -156,6 +158,7 @@
 				3879DA932FE7D4ED0064E527 /* MarkdownView in Frameworks */,
 				38754A972F845BE60012CD28 /* ReactionContextMenu in Frameworks */,
 				388C02F72FB5131C0098FB4F /* MarkdownParser in Frameworks */,
+				3883D6B5305061D100F5DC07 /* MarkdownView in Frameworks */,
 				387CAAD82F8AB953000B5152 /* MarkdownView in Frameworks */,
 				38B6DED72FA55DDC001924FB /* MarkdownView in Frameworks */,
 				3890E28F2F9845C10011D505 /* MarkdownParser in Frameworks */,
@@ -177,6 +180,7 @@
 				38AA00012FA9B00000MRMAID /* BeautifulMermaid in Frameworks */,
 				3800ST012F00000000ST001 /* SwiftTerm in Frameworks */,
 				388C02F92FB5131C0098FB4F /* MarkdownView in Frameworks */,
+				3883D6B3305061D100F5DC07 /* MarkdownParser in Frameworks */,
 				387CA40E2F882523000B5152 /* MarkdownParser in Frameworks */,
 				38C7FDAD2FF9783D001C94A0 /* MarkdownView in Frameworks */,
 				388C02EF2FB44BD60098FB4F /* MarkdownView in Frameworks */,
@@ -302,6 +306,8 @@
 				3852CBEE303629A1004742AD /* MarkdownView */,
 				383573A03040FCDC00BB4B52 /* MarkdownParser */,
 				383573A23040FCDC00BB4B52 /* MarkdownView */,
+				3883D6B2305061D100F5DC07 /* MarkdownParser */,
+				3883D6B4305061D100F5DC07 /* MarkdownView */,
 			);
 			productName = "Open UI";
 			productReference = 38EB667D2F39CE5A00AED774 /* Open UI.app */;
@@ -368,7 +374,7 @@
 				38754A952F845BE60012CD28 /* XCRemoteSwiftPackageReference "ReactionContextMenu" */,
 				3800STREF2F00000000ST00F /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				38FEA3162FA2A18600A98F25 /* XCRemoteSwiftPackageReference "mlx-audio-swift" */,
-				3835739F3040FCDC00BB4B52 /* XCLocalSwiftPackageReference "../MarkdownView" */,
+				3883D6B1305061D100F5DC07 /* XCRemoteSwiftPackageReference "MarkdownView" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 38EB667E2F39CE5A00AED774 /* Products */;
@@ -463,7 +469,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 5.5.2;
+				MARKETING_VERSION = 5.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.openui.openui.OpenUIWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -495,7 +501,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 5.5.2;
+				MARKETING_VERSION = 5.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.openui.openui.OpenUIWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -664,7 +670,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 5.5.2;
+				MARKETING_VERSION = 5.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.openui.openui;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -712,7 +718,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 5.5.2;
+				MARKETING_VERSION = 5.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.openui.openui;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -745,7 +751,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 5.5.2;
+				MARKETING_VERSION = 5.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.openui.openui.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -772,7 +778,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 5.5.2;
+				MARKETING_VERSION = 5.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.openui.openui.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -824,13 +830,6 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		3835739F3040FCDC00BB4B52 /* XCLocalSwiftPackageReference "../MarkdownView" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../MarkdownView;
-		};
-/* End XCLocalSwiftPackageReference section */
-
 /* Begin XCRemoteSwiftPackageReference section */
 		3800STREF2F00000000ST00F /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -843,6 +842,14 @@
 		38754A952F845BE60012CD28 /* XCRemoteSwiftPackageReference "ReactionContextMenu" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/Ichigo3766/ReactionContextMenu";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		3883D6B1305061D100F5DC07 /* XCRemoteSwiftPackageReference "MarkdownView" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Ichigo3766/MarkdownView.git";
 			requirement = {
 				branch = main;
 				kind = branch;
@@ -931,6 +938,16 @@
 		};
 		387CAAD72F8AB953000B5152 /* MarkdownView */ = {
 			isa = XCSwiftPackageProductDependency;
+			productName = MarkdownView;
+		};
+		3883D6B2305061D100F5DC07 /* MarkdownParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3883D6B1305061D100F5DC07 /* XCRemoteSwiftPackageReference "MarkdownView" */;
+			productName = MarkdownParser;
+		};
+		3883D6B4305061D100F5DC07 /* MarkdownView */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3883D6B1305061D100F5DC07 /* XCRemoteSwiftPackageReference "MarkdownView" */;
 			productName = MarkdownView;
 		};
 		388C02EC2FB44BD60098FB4F /* MarkdownParser */ = {

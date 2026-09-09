@@ -75,6 +75,16 @@ final class ChatViewModel {
                 streamingStartedContinuation?.resume()
                 streamingStartedContinuation = nil
             }
+            // Update the store's streamingConversationId so the sidebar spinner
+            // can react purely by observing one property on the @Observable store,
+            // bypassing the @ObservationIgnored viewModels dictionary entirely.
+            // conversationId reflects the real server ID once promoteNewChat fires.
+            let chatId = conversationId ?? conversation?.id
+            if isStreaming {
+                activeChatStore?.streamingConversationId = chatId
+            } else if activeChatStore?.streamingConversationId == chatId {
+                activeChatStore?.streamingConversationId = nil
+            }
         }
     }
     /// True while a fork (clone) request is in-flight. Drives the spinner in the action bar.
@@ -2451,6 +2461,33 @@ final class ChatViewModel {
         case "chat:tags":
             if let chatId, let msgId = messageId {
                 Task { try? await refreshConversationMetadata(chatId: chatId, assistantMessageId: msgId) }
+            }
+            return
+
+        case "context_compaction":
+            // Server-side context compaction runs before the model generates its
+            // response and can take significant time with local/slow models.
+            // Show a persistent status pill so the user knows the app is working.
+            // Mirrors handleChatEvent's context_compaction handling.
+            let compactionMsgId = messageId ?? lastCompletedSelfInitiatedMessageId
+            if let compactionMsgId {
+                let isDone = payload?["done"] as? Bool ?? false
+                let hasError = payload?["error"] != nil
+                if isDone {
+                    appendStatusUpdate(id: compactionMsgId,
+                        status: ChatStatusUpdate(
+                            action: "context_compaction",
+                            description: hasError ? "Context compaction failed" : "Context compacted",
+                            done: true
+                        ))
+                } else {
+                    appendStatusUpdate(id: compactionMsgId,
+                        status: ChatStatusUpdate(
+                            action: "context_compaction",
+                            description: "Compacting context…",
+                            done: false
+                        ))
+                }
             }
             return
 
@@ -4880,6 +4917,31 @@ final class ChatViewModel {
             logger.info("🔧 [Socket] Acknowledging execute event for tool pipeline")
             ack?(true)
 
+        case "context_compaction":
+            // Context compaction is a server-side operation that runs before the model
+            // generates its response. It can take significant time with local or slow models.
+            // Show a persistent status indicator so the user knows the app is working.
+            // Mirrors Open WebUI's handleContextCompactionStatus() behaviour.
+            if let payload {
+                let isDone = payload["done"] as? Bool ?? false
+                let hasError = payload["error"] != nil
+                if isDone {
+                    appendStatusUpdate(id: assistantMessageId,
+                        status: ChatStatusUpdate(
+                            action: "context_compaction",
+                            description: hasError ? "Context compaction failed" : "Context compacted",
+                            done: true
+                        ))
+                } else {
+                    appendStatusUpdate(id: assistantMessageId,
+                        status: ChatStatusUpdate(
+                            action: "context_compaction",
+                            description: "Compacting context…",
+                            done: false
+                        ))
+                }
+            }
+
         // --- Events that should only work during active streaming ---
 
         default:
@@ -5055,6 +5117,16 @@ final class ChatViewModel {
 
             // Done signal — always check after processing output
             if isDone {
+                // Guard: if ask_user is pending, the LLM has finished writing the tool call
+                // but the tool itself is still waiting for user input. Do NOT finalize
+                // streaming yet — we must wait for the user to answer (or time out).
+                // liveAskUserPrompt is cleared in answerAskUser/rejectAskUser, at which
+                // point the server resumes and will emit another done:true to finalize.
+                if liveAskUserPrompt != nil {
+                    logger.info("done:true (output path) with ask_user pending — deferring finalization until user responds")
+                    updateAssistantMessage(id: assistantMessageId, content: acc.content, isStreaming: true)
+                    return
+                }
                 logger.info("Received done:true (output path) – finalizing streaming")
                 finishStreamingSuccessfully(
                     assistantMessageId: assistantMessageId,
@@ -5129,6 +5201,11 @@ final class ChatViewModel {
 
         // Done signal for legacy paths
         if payload["done"] as? Bool == true {
+            // Guard: if ask_user is pending, defer finalization (same as PATH 1).
+            if liveAskUserPrompt != nil {
+                logger.info("done:true (legacy path) with ask_user pending — deferring finalization until user responds")
+                return
+            }
             logger.info("Received done:true (legacy path) – finalizing streaming")
             finishStreamingSuccessfully(
                 assistantMessageId: assistantMessageId,
@@ -5583,6 +5660,15 @@ final class ChatViewModel {
                     let hasInProgressToolCall = serverContent.contains("done=\"false\"")
                         && serverContent.contains("tool_calls")
 
+                    // Guard: don't finalize while the ask_user tool is waiting for the user's
+                    // response. liveAskUserPrompt is set on request:user_input and cleared when
+                    // the user answers or rejects — the tool has its own timeout, so we must
+                    // wait indefinitely here rather than cutting the response short.
+                    if self.liveAskUserPrompt != nil {
+                        self.logger.debug("Recovery: ask_user pending — skipping finalization")
+                        return
+                    }
+
                     if (serverDone || contentComplete) && !serverContent.isEmpty && !hasInProgressToolCall {
                         self.logger.info("Recovery: finalizing — serverDone=\(serverDone) contentComplete=\(contentComplete) chars=\(serverContent.count)")
                         self.updateAssistantMessage(
@@ -5620,6 +5706,11 @@ final class ChatViewModel {
                 // Hard absolute timeout (10 minutes) regardless of task status
                 let elapsed = Date().timeIntervalSince(self.recoveryTimerStartDate)
                 if elapsed > 600 {
+                    // Guard: even on hard timeout, don't terminate while ask_user is active.
+                    guard self.liveAskUserPrompt == nil else {
+                        self.logger.debug("Recovery: ask_user pending — skipping hard timeout finalization")
+                        return
+                    }
                     self.logger.warning("Recovery: hard timeout after \(Int(elapsed))s — giving up")
                     let giveUpContent = self.conversation?.messages.last(where: { $0.role == .assistant })?.content ?? ""
                     self.updateAssistantMessage(
@@ -5661,6 +5752,11 @@ final class ChatViewModel {
                             self.emptyPollCount = 0   // reset so we never time out while tool is running
                             // Do NOT finalize — keep polling until the tool result arrives
                         } else {
+                            // Guard: don't finalize while ask_user is waiting for user input.
+                            guard self.liveAskUserPrompt == nil else {
+                                self.logger.debug("Recovery: ask_user pending (empty task list) — not finalizing")
+                                return
+                            }
                             // Server says the task is finished and no in-progress tool calls — finalize.
                             self.logger.info("Recovery: server task finished (empty task list) — performing final sync")
                             if let refreshed = try? await manager.fetchConversation(id: chatId),
@@ -5692,6 +5788,11 @@ final class ChatViewModel {
                         self.emptyPollCount += 1
                         self.logger.debug("Recovery: falling back to stale-poll counter (\(self.emptyPollCount)/12) after task-check failures")
                         if self.emptyPollCount >= 12 {
+                            // Guard: don't finalize via stale-poll path while ask_user is active.
+                            guard self.liveAskUserPrompt == nil else {
+                                self.logger.debug("Recovery: ask_user pending — skipping stale-poll finalization")
+                                return
+                            }
                             self.logger.warning("Recovery: giving up after \(self.emptyPollCount) static polls (task-check unreachable)")
                             let giveUpContent = self.conversation?.messages.last(where: { $0.role == .assistant })?.content ?? ""
                             self.updateAssistantMessage(

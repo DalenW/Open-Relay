@@ -271,6 +271,22 @@ final class TerminalBrowserViewModel {
         }
     }
 
+    func renameItem(_ item: TerminalFileItem, to newName: String) async {
+        guard let apiClient, !serverId.isEmpty else { return }
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != item.name else { return }
+        let parentPath = (item.path as NSString).deletingLastPathComponent
+        let newPath = parentPath.hasSuffix("/")
+            ? "\(parentPath)\(trimmed)"
+            : "\(parentPath)/\(trimmed)"
+        do {
+            try await apiClient.terminalMoveFile(serverId: serverId, sourcePath: item.path, destinationPath: newPath)
+            await loadDirectory()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func downloadFile(_ item: TerminalFileItem) async -> URL? {
         guard let apiClient, !serverId.isEmpty else { return nil }
         do {

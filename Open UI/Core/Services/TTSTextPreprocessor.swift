@@ -41,6 +41,12 @@ enum TTSTextPreprocessor {
     static func prepareForSpeech(_ text: String) -> String {
         var result = text
 
+        // 0. Strip thinking/reasoning blocks BEFORE any other processing so the
+        //    reasoning prose is never passed to TTS. Must run first — removeHTMLTags
+        //    would otherwise strip just the <details> delimiters and leave all the
+        //    thinking text behind to be spoken.
+        result = removeThinkingBlocks(result)
+
         // 1. Remove code blocks (```...```)
         result = removeCodeBlocks(result)
 
@@ -399,6 +405,76 @@ enum TTSTextPreprocessor {
 
         // --- Common abbreviation expansion for more natural pauses ---
         result = expandAbbreviations(result)
+
+        return result
+    }
+
+    // MARK: - Thinking / Reasoning Block Removal
+
+    /// Strips all thinking/reasoning content from the text before TTS.
+    ///
+    /// Handles three forms:
+    /// 1. Server-normalised `<details type="reasoning">…</details>` blocks (both
+    ///    `done="true"` and `done="false"` mid-stream variants).
+    /// 2. Raw model tags emitted during streaming before OpenWebUI normalises them
+    ///    (`<think>`, `<thinking>`, `<reasoning>`, `<reason>`, `<thought>`,
+    ///    `<|begin_of_thought|>`, `◁think▷` and their closing variants).
+    /// 3. Orphaned / unclosed opening tags with no matching closer (mid-stream):
+    ///    the entire remainder after the opening tag is dropped so no reasoning
+    ///    text leaks into the spoken output while the model is still thinking.
+    static func removeThinkingBlocks(_ text: String) -> String {
+        var result = text
+
+        // 1. Server-normalised <details type="reasoning">…</details> blocks.
+        //    Matches both done="true" (complete) and done="false" (in-progress).
+        //    Uses (?s) so . matches newlines inside multi-line thinking blocks.
+        if let regex = try? NSRegularExpression(
+            pattern: #"(?s)<details\s[^>]*type\s*=\s*["']reasoning["'][^>]*>.*?</details>"#
+        ) {
+            result = regex.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: ""
+            )
+        }
+
+        // 2. Raw model reasoning tag pairs — complete (open+close both present).
+        let rawTagPairs: [(open: String, close: String)] = [
+            ("<|begin_of_thought|>", "<|end_of_thought|>"),
+            ("◁think▷",             "◁/think▷"),
+            ("<thinking>",           "</thinking>"),
+            ("<reasoning>",          "</reasoning>"),
+            ("<thought>",            "</thought>"),
+            ("<reason>",             "</reason>"),
+            ("<think>",              "</think>"),
+        ]
+        for pair in rawTagPairs {
+            let escapedOpen  = NSRegularExpression.escapedPattern(for: pair.open)
+            let escapedClose = NSRegularExpression.escapedPattern(for: pair.close)
+            let pattern = "(?si)\(escapedOpen).*?\(escapedClose)"
+            if let regex = try? NSRegularExpression(pattern: pattern) {
+                result = regex.stringByReplacingMatches(
+                    in: result,
+                    range: NSRange(result.startIndex..., in: result),
+                    withTemplate: ""
+                )
+            }
+        }
+
+        // 3. Orphaned / unclosed opening tags (mid-stream — the model is still thinking).
+        //    Drop everything from the opening tag to the end of the string so no
+        //    partial reasoning text is spoken.
+        for pair in rawTagPairs {
+            let escapedOpen = NSRegularExpression.escapedPattern(for: pair.open)
+            let pattern = "(?si)\(escapedOpen).*$"
+            if let regex = try? NSRegularExpression(pattern: pattern) {
+                result = regex.stringByReplacingMatches(
+                    in: result,
+                    range: NSRange(result.startIndex..., in: result),
+                    withTemplate: ""
+                )
+            }
+        }
 
         return result
     }

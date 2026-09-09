@@ -75,6 +75,13 @@ final class ActiveChatStore {
     /// Cleared on logout/server switch.
     var cachedMessageRatingEnabled: Bool? = nil
 
+    /// The conversation ID that is currently streaming (or `nil` when idle).
+    /// Written by ChatViewModel.isStreaming.didSet via the activeChatStore reference.
+    /// Observed directly by ConversationStreamingIndicator / iPadConversationTrailingIndicator
+    /// so the sidebar spinner reacts correctly — even for brand-new chats whose VM
+    /// is stored under "__new__" and therefore can't be looked up by conversation ID.
+    var streamingConversationId: String? = nil
+
     /// Whether the server admin has enabled tool-approval (human-in-the-loop) permissions.
     /// Populated from `BackendConfig.features.enableToolPermissions` after the first config fetch.
     /// Cleared on logout/server switch.

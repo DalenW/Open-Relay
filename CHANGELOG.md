@@ -1,5 +1,23 @@
 # Changelog
 
+## v5.6 — September 8, 2026
+
+### What's New
+- Added a "Compacting context…" status indicator that appears while the server is compressing a long conversation before generating a response
+- Added "Rename" and "Insert Path into Chat" actions to the terminal file browser context menu
+
+### Improvements
+- Model selector in the navigation bar now expands dynamically
+- Added activity spinner next to conversations in the sidebar while a generation is in progress, including while waiting for the first token in new chats
+
+### Bug Fixes
+- Fixed auto-scroll stopping early during long streaming responses — the scroll pump now stays active until content fully renders, not just for a fixed window after streaming ends
+- Fixed hamburger menu becoming inaccessible while a response is streaming
+- Fixed short conversations opening with messages not fitting on the screen
+- Fixed keyboard not dismissing when tapping the empty area of the chat in short conversations
+- Fixed chat input bar being hidden behind the keyboard in landscape mode when the terminal file browser is open
+- Fixed ask-user tool call marking response as finished early while waiting for you to answer a question
+
 ## v5.5.2 — September 1, 2026
 
 ### Improvements
