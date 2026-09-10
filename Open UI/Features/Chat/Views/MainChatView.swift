@@ -16,6 +16,7 @@ struct MainChatView: View {
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var systemColorScheme
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     /// Controls the drawer visibility.
     @State private var showDrawer = false
@@ -243,9 +244,22 @@ struct MainChatView: View {
 
     // MARK: File Browser Computed Properties (right-side panel, mirrors drawer)
 
+    /// Whether landscape split mode is active (terminal panel is shown side-by-side).
+    /// In landscape (`verticalSizeClass == .compact`) with terminal active the panel
+    /// sits permanently beside the chat — no offset/push behaviour.
+    private var isLandscapeSplitActive: Bool {
+        verticalSizeClass == .compact && isTerminalActiveInCurrentChat
+    }
+
     /// File browser panel width.
+    /// In landscape the panel is narrower (40% capped at 340 pt) so the keyboard
+    /// doesn't cover the prompt field. In portrait the existing full-width behaviour
+    /// is preserved.
     private var fileBrowserWidth: CGFloat {
-        min(containerWidth * 0.85, 380)
+        if verticalSizeClass == .compact {
+            return min(containerWidth * 0.40, 340)
+        }
+        return min(containerWidth * 0.85, 380)
     }
 
     /// Effective X offset for the file browser (containerWidth = off-screen right,
@@ -291,6 +305,132 @@ struct MainChatView: View {
 
     @ViewBuilder
     private func mainZStack(voiceCallBinding: Binding<Bool>) -> some View {
+        // In landscape with terminal active, use a true side-by-side split so the
+        // keyboard can avoid the input field correctly. The offset-based overlay
+        // shifts the NavigationStack's geometry, which confuses iOS keyboard avoidance.
+        if isLandscapeSplitActive {
+            landscapeSplitLayout(voiceCallBinding: voiceCallBinding)
+        } else {
+            portraitOverlayLayout(voiceCallBinding: voiceCallBinding)
+        }
+    }
+
+    // MARK: Landscape: HStack split — chat left, file browser right (no offset)
+
+    @ViewBuilder
+    private func landscapeSplitLayout(voiceCallBinding: Binding<Bool>) -> some View {
+        HStack(spacing: 0) {
+            // Chat fills remaining space — keyboard avoidance works naturally here
+            NavigationStack {
+                chatContent
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbarBackground(.hidden, for: .navigationBar)
+            }
+            // Left-edge swipe to open drawer still works in landscape
+            .overlay(alignment: .leading) {
+                if !showDrawer && !isDraggingFileBrowser {
+                    Color.clear
+                        .frame(width: 20)
+                        .frame(maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 12, coordinateSpace: .local)
+                                .onChanged { value in
+                                    let horizontal = value.translation.width
+                                    let vertical = abs(value.translation.height)
+                                    guard abs(horizontal) > vertical, horizontal > 0 else { return }
+                                    if !isDraggingDrawer {
+                                        UIApplication.shared.sendAction(
+                                            #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                                    }
+                                    isDraggingDrawer = true
+                                    dragOffset = horizontal
+                                }
+                                .onEnded { value in
+                                    guard isDraggingDrawer else { return }
+                                    let horizontal = value.translation.width
+                                    let velocity = value.velocity.width
+                                    isDraggingDrawer = false
+                                    if horizontal > drawerWidth * 0.2 || velocity > 300 {
+                                        openDrawerAnimated()
+                                    } else {
+                                        closeDrawerAnimated()
+                                    }
+                                }
+                        )
+                }
+            }
+            // Drawer still overlays in landscape (same as portrait)
+            .overlay(alignment: .leading) {
+                drawerContent
+                    .frame(width: drawerWidth)
+                    .offset(x: effectiveDrawerX)
+                    .accessibilityHidden(drawerFraction < 0.01)
+                    .gesture(
+                        DragGesture(minimumDistance: 12, coordinateSpace: .local)
+                            .onChanged { value in
+                                let horizontal = value.translation.width
+                                guard horizontal < 0 else { return }
+                                isDraggingDrawer = true
+                                dragOffset = horizontal
+                            }
+                            .onEnded { value in
+                                guard isDraggingDrawer else { return }
+                                let horizontal = value.translation.width
+                                let velocity = value.velocity.width
+                                isDraggingDrawer = false
+                                if horizontal < -(drawerWidth * 0.15) || velocity < -300 {
+                                    closeDrawerAnimated()
+                                } else {
+                                    openDrawerAnimated()
+                                }
+                            }
+                    )
+            }
+
+            // File browser as a persistent trailing column — fixed width, no offsets
+            TerminalBrowserView(
+                viewModel: terminalBrowserVM,
+                onDismiss: { closeFileBrowserAnimated() }
+            )
+            .frame(width: fileBrowserWidth)
+            .background(theme.background)
+            .clipShape(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 16, bottomLeadingRadius: 16,
+                    bottomTrailingRadius: 0, topTrailingRadius: 0,
+                    style: .continuous
+                )
+            )
+            .shadow(color: .black.opacity(0.2), radius: 16, x: -4)
+        }
+        // Photo picker still needs window-level coverage
+        .overlay(alignment: .bottom) {
+            AnimatedPhotoPicker(
+                isPresented: showAnimatedPhotoPicker,
+                onConfirm: { assets in
+                    NotificationCenter.default.post(
+                        name: .openUIPhotoPickerConfirm,
+                        object: nil,
+                        userInfo: ["assets": assets]
+                    )
+                },
+                onDismiss: {
+                    showAnimatedPhotoPicker = false
+                }
+            )
+        }
+        // Prevent iOS from squishing the HStack container when the keyboard appears.
+        // ChatDetailView handles keyboard avoidance itself via keyboard.height padding
+        // on the safeAreaInset content (which uses raw UIKit notifications, bypassing
+        // the broken safe-area propagation chain inside an HStack child).
+        .ignoresSafeArea(.keyboard)
+    }
+
+    // MARK: Portrait: ZStack offset layout (original behaviour)
+
+    @ViewBuilder
+    private func portraitOverlayLayout(voiceCallBinding: Binding<Bool>) -> some View {
         ZStack(alignment: .leading) {
             // MARK: Main chat content — pushed right as drawer opens (Reddit/Twitter style)
             NavigationStack {
@@ -298,7 +438,6 @@ struct MainChatView: View {
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbarBackground(.hidden, for: .navigationBar)
             }
-            .ignoresSafeArea(.keyboard, edges: .bottom)
             // Push the content card — right by drawer, left by file browser
             .offset(x: combinedContentOffset)
             .scaleEffect(combinedContentScale, anchor: .center)
@@ -2856,6 +2995,12 @@ struct MainChatView: View {
                             )
                             .lineLimit(1)
                         Spacer()
+                        // Dedicated child view so @Observable tracks streamingConversationId reactively
+                        ConversationStreamingIndicator(
+                            conversationId: conversation.id,
+                            activeChatStore: dependencies.activeChatStore,
+                            tint: theme.brandPrimary
+                        )
                     }
                     .padding(.horizontal, Spacing.md)
                     .padding(.vertical, 7)
@@ -3401,6 +3546,31 @@ struct MainChatView: View {
                     group.addTask { await listViewModel.folderViewModel.refreshFolders() }
                 }
             }
+        }
+    }
+}
+
+// MARK: - Conversation Streaming Indicator
+
+/// Dedicated child view so SwiftUI's @Observable tracking correctly registers
+/// a dependency on `vm.isStreaming` inside `body` — reading it in a `Button`
+/// label closure (which is not a tracked context) does not trigger re-renders.
+private struct ConversationStreamingIndicator: View {
+    let conversationId: String
+    let activeChatStore: ActiveChatStore
+    let tint: Color
+
+    private var isStreaming: Bool {
+        activeChatStore.streamingConversationId == conversationId
+    }
+
+    var body: some View {
+        if isStreaming {
+            ProgressView()
+                .controlSize(.mini)
+                .tint(tint)
+                .transition(.opacity.combined(with: .scale))
+                .animation(.easeInOut(duration: 0.2), value: isStreaming)
         }
     }
 }

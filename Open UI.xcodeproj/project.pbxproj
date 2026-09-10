@@ -26,6 +26,8 @@
 		387CA4102F882523000B5152 /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = 387CA40F2F882523000B5152 /* MarkdownView */; };
 		387CAAD62F8AB953000B5152 /* MarkdownParser in Frameworks */ = {isa = PBXBuildFile; productRef = 387CAAD52F8AB953000B5152 /* MarkdownParser */; };
 		387CAAD82F8AB953000B5152 /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = 387CAAD72F8AB953000B5152 /* MarkdownView */; };
+		3883D6B3305061D100F5DC07 /* MarkdownParser in Frameworks */ = {isa = PBXBuildFile; productRef = 3883D6B2305061D100F5DC07 /* MarkdownParser */; };
+		3883D6B5305061D100F5DC07 /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = 3883D6B4305061D100F5DC07 /* MarkdownView */; };
 		388C02ED2FB44BD60098FB4F /* MarkdownParser in Frameworks */ = {isa = PBXBuildFile; productRef = 388C02EC2FB44BD60098FB4F /* MarkdownParser */; };
 		388C02EF2FB44BD60098FB4F /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = 388C02EE2FB44BD60098FB4F /* MarkdownView */; };
 		388C02F72FB5131C0098FB4F /* MarkdownParser in Frameworks */ = {isa = PBXBuildFile; productRef = 388C02F62FB5131C0098FB4F /* MarkdownParser */; };
@@ -857,6 +859,14 @@
 				kind = branch;
 			};
 		};
+		3883D6B1305061D100F5DC07 /* XCRemoteSwiftPackageReference "MarkdownView" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Ichigo3766/MarkdownView.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		38AA00022FA9B00000MRMAID /* XCRemoteSwiftPackageReference "beautiful-mermaid-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/lukilabs/beautiful-mermaid-swift";
@@ -948,6 +958,16 @@
 		};
 		387CAAD72F8AB953000B5152 /* MarkdownView */ = {
 			isa = XCSwiftPackageProductDependency;
+			productName = MarkdownView;
+		};
+		3883D6B2305061D100F5DC07 /* MarkdownParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3883D6B1305061D100F5DC07 /* XCRemoteSwiftPackageReference "MarkdownView" */;
+			productName = MarkdownParser;
+		};
+		3883D6B4305061D100F5DC07 /* MarkdownView */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3883D6B1305061D100F5DC07 /* XCRemoteSwiftPackageReference "MarkdownView" */;
 			productName = MarkdownView;
 		};
 		388C02EC2FB44BD60098FB4F /* MarkdownParser */ = {

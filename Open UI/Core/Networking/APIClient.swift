@@ -3089,6 +3089,18 @@ final class APIClient: @unchecked Sendable {
         )
     }
 
+    func terminalMoveFile(serverId: String, sourcePath: String, destinationPath: String) async throws {
+        let body: [String: Any] = [
+            "src_path": sourcePath,
+            "dst_path": destinationPath
+        ]
+        try await network.requestVoidJSON(
+            path: "/api/v1/terminals/\(serverId)/files/move",
+            method: .post,
+            body: body
+        )
+    }
+
     func terminalDownloadFile(serverId: String, path: String) async throws -> (Data, String) {
         let (data, response) = try await network.requestRaw(
             path: "/api/v1/terminals/\(serverId)/files/view",

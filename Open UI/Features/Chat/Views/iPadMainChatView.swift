@@ -2328,11 +2328,14 @@ struct iPadSidebarContent: View {
                             .foregroundStyle(isActive ? theme.textPrimary : theme.textSecondary)
                             .lineLimit(1)
                         Spacer()
-                        // Always render Circle to avoid layout shifts on insertion/removal
-                        Circle()
-                            .fill(theme.brandPrimary)
-                            .frame(width: 6, height: 6)
-                            .opacity(isActive ? 1 : 0)
+                        // Dedicated child view so @Observable tracks streamingConversationId reactively.
+                        // Falls back to the active dot when not streaming.
+                        iPadConversationTrailingIndicator(
+                            conversationId: conversation.id,
+                            activeChatStore: dependencies.activeChatStore,
+                            isActive: isActive,
+                            tint: theme.brandPrimary
+                        )
                     }
                     .padding(.horizontal, Spacing.md)
                     .padding(.vertical, 8)
@@ -2597,6 +2600,33 @@ struct iPadSidebarContent: View {
 }
 
 // MARK: - Context Menu (iPad Sidebar)
+
+private struct iPadConversationTrailingIndicator: View {
+    let conversationId: String
+    let activeChatStore: ActiveChatStore
+    let isActive: Bool
+    let tint: Color
+
+    private var isStreaming: Bool {
+        activeChatStore.streamingConversationId == conversationId
+    }
+
+    var body: some View {
+        if isStreaming {
+            ProgressView()
+                .controlSize(.mini)
+                .tint(tint)
+                .transition(.opacity.combined(with: .scale))
+                .animation(.easeInOut(duration: 0.2), value: isStreaming)
+        } else {
+            // Always render Circle to avoid layout shifts on insertion/removal
+            Circle()
+                .fill(tint)
+                .frame(width: 6, height: 6)
+                .opacity(isActive ? 1 : 0)
+        }
+    }
+}
 
 private struct iPadConversationContextMenu: View {
     let conversation: Conversation

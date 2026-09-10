@@ -134,7 +134,7 @@ actor StreamingPipeline {
 
     /// Shorter latency used once the server has finished sending.
     /// Drains any remaining buffer quickly so the user isn't waiting.
-    private let finishingLatencyFrames: Double = 6
+    private let finishingLatencyFrames: Double = 15
 
     /// Minimum chars/frame floor — raised from 0.3 to 1.5 so brief server pauses
     /// don't crater the reveal rate to near-zero.  At 60 Hz, 1.5 chars/frame = 90
@@ -313,11 +313,26 @@ actor StreamingPipeline {
         }
 
         // ── Tool call / reasoning freeze ──────────────────────────────────────
-        // Hold the drain cursor while an unclosed tool_calls or reasoning block
-        // is in-flight so the user never sees partial HTML. Fall through when
-        // isFinishing so content isn't left invisible if the server closes abnormally.
-        if toolCallFlags(for: full).hasUnclosed || reasoningFlags(for: full).hasUnclosed {
-            if !isFinishing { return }
+        // Hold the drain cursor at the start of any unclosed tool_calls or reasoning
+        // block so the user never sees partial HTML. We drain all content that appears
+        // BEFORE the unclosed tag normally — only text inside the partial block is held.
+        // Fall through when isFinishing so content isn't left invisible if the server
+        // closes abnormally.
+        if !isFinishing {
+            let hasUnclosedTool = toolCallFlags(for: full).hasUnclosed
+            let hasUnclosedReasoning = reasoningFlags(for: full).hasUnclosed
+            if hasUnclosedTool || hasUnclosedReasoning {
+                // Find the character offset of the first unclosed <details opening tag.
+                // Allow the drain cursor to advance up to that boundary so prose that
+                // arrived before the tag is still revealed to the user in real-time.
+                if let boundary = Self.firstUnclosedDetailsStart(in: full), displayedCount < boundary {
+                    let endIdx = full.index(full.startIndex, offsetBy: boundary)
+                    displayedCount = boundary
+                    drainAccumulator = 0
+                    publishSnapshot(displayContent: String(full[..<endIdx]))
+                }
+                return
+            }
         }
 
         // ── Closed tool call fast-forward ─────────────────────────────────────
@@ -1007,6 +1022,43 @@ actor StreamingPipeline {
 
         guard let e = lastEnd else { return nil }
         return content.distance(from: content.startIndex, to: e)
+    }
+
+    /// Returns the character offset of the **first** `<details` opening tag whose
+    /// opening `>` has not yet arrived in `content` — i.e. the start of an
+    /// in-flight partial HTML block. This is the drain boundary: content before
+    /// this offset is safe to reveal; content at-or-after it must stay hidden.
+    ///
+    /// Returns `nil` when no unclosed `<details` start is found (e.g. all blocks
+    /// have their opening tag fully arrived, or there are no `<details` tags at all).
+    static func firstUnclosedDetailsStart(in content: String) -> Int? {
+        var idx = content.startIndex
+        while idx < content.endIndex {
+            guard content[idx] == "<" else { idx = content.index(after: idx); continue }
+            guard content[idx...].hasPrefix("<details") else { idx = content.index(after: idx); continue }
+            // Found a <details — scan ahead to see if the opening > has arrived.
+            let afterDetails = content.index(idx, offsetBy: 8, limitedBy: content.endIndex) ?? content.endIndex
+            var j = afterDetails
+            var inQuote: Character? = nil
+            var tagClosed = false
+            while j < content.endIndex {
+                let ch = content[j]
+                if let q = inQuote {
+                    if ch == q { inQuote = nil }
+                } else {
+                    if ch == "\"" || ch == "'" { inQuote = ch }
+                    else if ch == ">" { tagClosed = true; break }
+                }
+                j = content.index(after: j)
+            }
+            if !tagClosed {
+                // Opening tag not yet closed — this is the boundary.
+                return content.distance(from: content.startIndex, to: idx)
+            }
+            // Opening tag is fully closed — skip past it and keep scanning.
+            idx = content.index(after: j)
+        }
+        return nil
     }
 
     static func lastParagraphBoundary(in text: String, minTailLength: Int = 200) -> Int {
