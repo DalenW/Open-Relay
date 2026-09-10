@@ -1186,6 +1186,16 @@ final class ChatViewModel {
     func syncWithServer() async {
         guard !isStreaming || isExternallyStreaming else { return }
         guard let chatId = conversationId ?? conversation?.id, let manager else { return }
+        // Never sync while a load is still in flight. Before load completes,
+        // `conversation` is nil or being swapped (e.g. cache-hydrated copy) —
+        // adopting server data then either no-ops ("server has N msgs vs local 0"
+        // spam) or races the load path and mutates @Observable state
+        // mid-view-update. A brand-new chat passes: its load finished with an
+        // empty-but-non-nil conversation, so `conversation` is set.
+        guard !isLoadingConversation, conversation != nil else {
+            logger.debug("Server sync skipped — conversation not loaded yet")
+            return
+        }
 
         // Debounce: skip if we synced very recently (e.g., foreground observer
         // + .task both firing within the same second)

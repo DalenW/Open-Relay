@@ -1928,6 +1928,10 @@ struct ChatDetailView: View {
                !programmaticActive,
                effectiveStart > 0,
                !viewModel.isLoadingConversation {
+                // Defer all window mutations off this geometry action — mutating
+                // @State synchronously inside onScrollGeometryChange logs
+                // "Modifying state during view update" and can re-trigger the
+                // observer multiple times in one frame.
                 isLoadingMoreMessages = true
                 let capturedTotal = total
                 let capturedEffectiveStart = effectiveStart
@@ -1951,11 +1955,15 @@ struct ChatDetailView: View {
                 isLoadingMoreMessages = true
                 let anchorId = viewModel.messages[min(wEnd - 1, total - 1)].id
                 let slideBy = min(5, total - wEnd)
-                windowEnd = wEnd + slideBy
-                if windowEnd! >= total { windowEnd = nil }
 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                // Same deferral as the top-slide path: never mutate window state
+                // synchronously inside the geometry action.
+                Task { @MainActor in
+                    windowEnd = wEnd + slideBy
+                    if windowEnd == nil || windowEnd! >= total { windowEnd = nil }
                     scrollPosition.scrollTo(id: anchorId, anchor: .bottom)
+                    // Give the new rows one layout pass before re-arming pagination.
+                    try? await Task.sleep(nanoseconds: 50_000_000)
                     isLoadingMoreMessages = false
                 }
             }

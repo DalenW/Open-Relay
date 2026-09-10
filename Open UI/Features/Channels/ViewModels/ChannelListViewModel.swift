@@ -63,6 +63,13 @@ final class ChannelListViewModel {
     private var channelSubscription: SocketSubscription?
     private let logger = Logger(subsystem: "com.openui", category: "ChannelList")
     private(set) var hasLoaded = false
+
+    /// Circuit breaker: set when the server reports the Channels feature is
+    /// disabled. Stops the retry storm — loadChannels() is called on every
+    /// launch, socket reconnect, and drawer open, and a disabled server answered
+    /// every attempt with the same error. Cleared on configure() (server or
+    /// account switch, where the feature may be enabled).
+    private var channelsDisabledOnServer = false
     
     /// Current user ID — needed to filter DM participants (exclude self).
     var currentUserId: String?
@@ -80,15 +87,18 @@ final class ChannelListViewModel {
         self.apiClient = apiClient
         self.socketService = socket
         self.currentUserId = currentUserId
+        // New server/account — the Channels feature may be enabled here.
+        channelsDisabledOnServer = false
     }
-    
+
     // MARK: - Loading
-    
+
     func loadChannels() async {
         guard let apiClient else { return }
+        guard !channelsDisabledOnServer else { return }
         if !hasLoaded { isLoading = true }
         errorMessage = nil
-        
+
         do {
             let fetched = try await apiClient.getChannels()
             // Sort by most recently updated first
@@ -110,12 +120,21 @@ final class ChannelListViewModel {
             await populateDMParticipants()
             hasLoaded = true
         } catch {
-            logger.error("Failed to load channels: \(error.localizedDescription)")
-            if !hasLoaded {
-                errorMessage = error.localizedDescription
+            let description = error.localizedDescription
+            if description.localizedCaseInsensitiveContains("disabled") {
+                // Server says the Channels feature is off — stop retrying until
+                // the next configure() (server/account switch).
+                channelsDisabledOnServer = true
+                hasLoaded = true // Suppress error UI too; channels simply don't exist here
+                logger.info("Channels disabled on server — skipping future loads until reconfigure")
+            } else {
+                logger.error("Failed to load channels: \(description)")
+                if !hasLoaded {
+                    errorMessage = description
+                }
             }
         }
-        
+
         isLoading = false
     }
     

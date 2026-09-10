@@ -391,11 +391,15 @@ private struct ShimmerText: View {
             .scaledFont(size: 12, weight: .medium)
             .lineLimit(1)
             .foregroundStyle(
+                // Clamp every stop location to [0, 1]: shimmerPhase sweeps from
+                // -1.0 to 1.2, and unclamped edge locations (e.g. [0, -1, -0.8])
+                // are out of order — logging "Gradient stop locations must be
+                // ordered" on every shimmer cycle.
                 LinearGradient(
                     stops: [
-                        .init(color: theme.textSecondary, location: max(0, shimmerPhase - 0.2)),
-                        .init(color: theme.brandPrimary.opacity(0.85), location: shimmerPhase),
-                        .init(color: theme.textSecondary, location: min(1, shimmerPhase + 0.2))
+                        .init(color: theme.textSecondary, location: min(1, max(0, shimmerPhase - 0.2))),
+                        .init(color: theme.brandPrimary.opacity(0.85), location: min(1, max(0, shimmerPhase))),
+                        .init(color: theme.textSecondary, location: min(1, max(0, shimmerPhase + 0.2)))
                     ],
                     startPoint: .leading,
                     endPoint: .trailing

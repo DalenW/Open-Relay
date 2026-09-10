@@ -503,10 +503,11 @@ final class ChatListViewModel {
             }
 
             if !batchConversations.isEmpty {
-                // Merge batch into main list (deduplicated)
-                let newItems = batchConversations.filter { newConv in
-                    !conversations.contains(where: { $0.id == newConv.id })
-                }
+                // Merge batch into main list (deduplicated) — Set-based membership
+                // test instead of a nested contains(where:) scan, which was O(n²)
+                // across the full 400+ conversation refresh.
+                let existingIds = Set(conversations.map(\.id))
+                let newItems = batchConversations.filter { !existingIds.contains($0.id) }
                 if !newItems.isEmpty {
                     conversations.append(contentsOf: newItems)
                     let endPage = nextPage + batchSize - 1
